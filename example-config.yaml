@@ -1,0 +1,10 @@
+jellyfin:
+  url: "http://100.64.64.11:8096"
+  api_key: ""
+  user_id: ""
+stash:
+  url: "http://100.64.64.11:5588"
+  api_key: ""
+proxy:
+  host: "127.0.0.1"
+  port: 8366

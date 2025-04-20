@@ -1,2 +1,4 @@
 config.yaml
 shares.yaml
+__pycache__
+__pycaches/
