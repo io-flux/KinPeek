@@ -1,0 +1,56 @@
+body {
+    background-color: #282828; /* Gruvbox dark background */
+    color: #ebdbb2; /* Gruvbox light foreground */
+    font-family: 'Arial', sans-serif;
+}
+.container {
+    max-width: 1200px;
+    margin: auto;
+    padding: 20px;
+}
+.logo {
+    display: block;
+    margin: 0 auto 20px;
+    max-width: 200px;
+}
+.video-container {
+    background-color: #3c3836; /* Gruvbox dark gray */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+.disclaimer {
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #928374; /* Gruvbox gray */
+}
+.table-dark th, .table-dark td {
+    background-color: #3c3836;
+    color: #ebdbb2;
+}
+.btn-primary {
+    background-color: #d79921; /* Gruvbox yellow */
+    border-color: #d79921;
+}
+.btn-primary:hover {
+    background-color: #fabd2f;
+    border-color: #fabd2f;
+}
+.btn-warning {
+    background-color: #fe8019; /* Gruvbox orange */
+    border-color: #fe8019;
+}
+.btn-danger {
+    background-color: #cc241d; /* Gruvbox red */
+    border-color: #cc241d;
+}
+.vjs-default-skin {
+    font-family: 'Arial', sans-serif;
+}
+.video-js .vjs-control-bar {
+    background-color: #3c3836;
+}
+.video-js .vjs-play-progress, .video-js .vjs-volume-level {
+    background-color: #d79921;
+}

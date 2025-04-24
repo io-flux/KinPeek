@@ -1,4 +1,10 @@
+kinpeek:
+  host: "0.0.0.0"
+  port: 8000
+  admin_username: "admin"
+  admin_password: "your_secure_password"  # Replace with a strong password
 stash:
-  server_ip: "127.0.0.1" # replace Stash on other host
-  port: 5588 # replace if Stash on other port
-  api_key: "Enter your Stash API Key here"
+  server_ip: "192.168.1.100"  # Replace with your Stash server IP
+  port: 9999                  # Replace with your Stash server port
+  api_key: "your_api_key_here" # Replace with your Stash API key
+disclaimer: "This content is shared for private use only. Unauthorized distribution is prohibited."
