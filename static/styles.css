@@ -1,0 +1,238 @@
+/* Gruvbox Dark Theme - Basic Styles */
+:root {
+    --bg: #282828;
+    --fg: #ebdbb2;
+    --bg1: #3c3836;
+    --bg2: #504945;
+    --gray: #928374;
+    --red: #cc241d;
+    --green: #98971a;
+    --yellow: #d79921;
+    --blue: #458588;
+    --purple: #b16286;
+    --aqua: #689d6a;
+    --orange: #d65d0e;
+
+    --border-color: var(--bg2);
+    --input-bg: var(--bg1);
+    --button-bg: var(--blue);
+    --button-hover-bg: var(--aqua);
+    --button-fg: var(--bg);
+    --error-fg: var(--red);
+    --success-fg: var(--green);
+    --link-fg: var(--blue);
+    --link-hover-fg: var(--aqua);
+}
+
+body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: sans-serif;
+    margin: 0;
+    padding: 20px;
+    font-size: 14px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: var(--bg1);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+h1, h2, h3 {
+    color: var(--orange);
+    border-bottom: 1px solid var(--bg2);
+    padding-bottom: 5px;
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+
+h1 {
+    text-align: center;
+}
+
+/* Forms */
+form {
+    background-color: var(--bg2);
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+label {
+    display: inline-block;
+    margin-bottom: 5px;
+    color: var(--gray);
+    min-width: 100px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"] {
+    background-color: var(--input-bg);
+    color: var(--fg);
+    border: 1px solid var(--border-color);
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+    min-width: 200px;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--blue);
+}
+
+button {
+    background-color: var(--button-bg);
+    color: var(--button-fg);
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s ease;
+    margin-left: 5px;
+}
+
+button:hover {
+    background-color: var(--button-hover-bg);
+}
+
+button[type="submit"] {
+    background-color: var(--green);
+}
+
+button[type="submit"]:hover {
+    background-color: #b8bb26; /* Lighter green */
+}
+
+#logout-button,
+#cancel-edit-button {
+    background-color: var(--red);
+}
+
+#logout-button:hover,
+#cancel-edit-button:hover {
+     background-color: #fb4934; /* Lighter red */
+}
+
+.error-message {
+    color: var(--error-fg);
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.success-message {
+    color: var(--success-fg);
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+/* Table */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+thead {
+    background-color: var(--bg2);
+}
+
+th, td {
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    text-align: left;
+}
+
+th {
+    color: var(--yellow);
+}
+
+tbody tr:nth-child(odd) {
+    background-color: var(--bg1);
+}
+
+tbody tr:nth-child(even) {
+    background-color: var(--bg);
+}
+
+a {
+    color: var(--link-fg);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--link-hover-fg);
+    text-decoration: underline;
+}
+
+/* Buttons in Table */
+table button {
+    padding: 5px 8px;
+    font-size: 12px;
+    margin: 2px;
+}
+
+.copy-button {
+    background-color: var(--gray);
+    color: var(--bg);
+}
+.copy-button:hover {
+    background-color: #a89984; /* Lighter gray */
+}
+
+.edit-button {
+     background-color: var(--yellow);
+     color: var(--bg);
+}
+.edit-button:hover {
+    background-color: #fabd2f; /* Lighter yellow */
+}
+
+.delete-button {
+    background-color: var(--red);
+}
+.delete-button:hover {
+     background-color: #fb4934; /* Lighter red */
+}
+
+
+/* Edit Modal */
+#edit-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--bg2);
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    border: 1px solid var(--border-color);
+}
+
+#edit-modal h3 {
+    margin-top: 0;
+    color: var(--orange);
+    text-align: center;
+}
+
+#edit-modal label {
+    display: block;
+    margin-top: 10px;
+}
+
+#edit-modal input {
+    width: 100%;
+}
+
+#edit-modal button {
+    margin-top: 15px;
+    margin-right: 10px;
+} 

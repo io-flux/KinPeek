@@ -1,0 +1,68 @@
+/* Custom Video.js skin */
+.video-js {
+    font-family: 'Arial', sans-serif;
+    max-width: 800px; /* Constrain video size */
+    width: 100%;
+    aspect-ratio: 16 / 9; /* Maintain aspect ratio */
+    margin: 0 auto;
+}
+
+.video-js .vjs-control-bar {
+    background-color: #2A1B3D; /* Dark purple */
+    height: 60px; /* Larger control bar */
+    border-radius: 0 0 8px 8px;
+}
+
+.video-js .vjs-play-progress,
+.video-js .vjs-volume-level {
+    background-color: #FF2A6D; /* Neon pink */
+}
+
+.video-js .vjs-load-progress {
+    background-color: #1C1326; /* Dark gray */
+}
+
+.video-js .vjs-control {
+    width: 50px; /* Larger buttons */
+    height: 50px;
+    line-height: 50px;
+}
+
+.video-js .vjs-play-control,
+.video-js .vjs-volume-panel,
+.video-js .vjs-fullscreen-control,
+.video-js .vjs-playback-rate {
+    color: #00F5FF; /* Cyan */
+}
+
+.video-js .vjs-play-control:hover,
+.video-js .vjs-volume-panel:hover,
+.video-js .vjs-fullscreen-control:hover,
+.video-js .vjs-playback-rate:hover {
+    color: #FF2A6D; /* Pink on hover */
+}
+
+.video-js .vjs-progress-control .vjs-progress-holder {
+    height: 10px; /* Thicker progress bar */
+}
+
+.video-js .vjs-button > .vjs-icon-placeholder:before {
+    font-size: 24px; /* Larger icons */
+    line-height: 50px;
+}
+
+.video-js .vjs-time-tooltip,
+.video-js .vjs-progress-tooltip {
+    background-color: #1C1326;
+    color: #00F5FF;
+}
+
+/* Hide unneeded controls */
+.video-js .vjs-text-track-display,
+.video-js .vjs-captions-button,
+.video-js .vjs-subtitles-button,
+.video-js .vjs-audio-button,
+.video-js .vjs-chapters-button,
+.video-js .vjs-descriptions-button {
+    display: none !important;
+}
