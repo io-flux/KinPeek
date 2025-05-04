@@ -1,9 +1,9 @@
-from fastapi import FastAPI, HTTPException, Response, Depends, status
+from fastapi import FastAPI, HTTPException, Response, Depends, status, Request
 from fastapi.responses import StreamingResponse, HTMLResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 import yaml
@@ -16,6 +16,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import timedelta
 import logging
+from enum import Enum
+import re
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,7 +29,7 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust for production (e.g., ["http://your-domain.com"])
+    allow_origins=["*"],  # Adjust for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,10 +64,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login") # Points to the /login endpoint
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 try:
-    HASHED_ADMIN_PASSWORD = pwd_context.hash(ADMIN_PASSWORD)  # Hash at startup
+    HASHED_ADMIN_PASSWORD = pwd_context.hash(ADMIN_PASSWORD)
     logger.info("Admin password hashed successfully")
 except Exception as e:
     logger.error(f"Failed to hash admin password: {e}")
@@ -77,6 +79,12 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# Resolution Enum
+class Resolution(str, Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
 # Database model
 class SharedVideo(Base):
     __tablename__ = "shared_videos"
@@ -86,6 +94,7 @@ class SharedVideo(Base):
     stash_video_id = Column(Integer)
     expires_at = Column(DateTime(timezone=True))
     hits = Column(Integer, default=0)
+    resolution = Column(String, default="MEDIUM")  # Store resolution
 
 Base.metadata.create_all(bind=engine)
 
@@ -94,6 +103,7 @@ class ShareVideoRequest(BaseModel):
     video_name: str
     stash_video_id: int
     days_valid: int = 7
+    resolution: Resolution = Field(default=Resolution.MEDIUM, description="Streaming resolution")
 
 class Token(BaseModel):
     access_token: str
@@ -148,7 +158,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         access_token = create_access_token(data={"sub": form_data.username})
         logger.info(f"Login successful for username={form_data.username}")
         return {"access_token": access_token, "token_type": "bearer"}
-    except HTTPException as http_exc: # Re-raise HTTP exceptions directly
+    except HTTPException as http_exc:
         logger.warning(f"Login HTTP exception: {http_exc.detail}")
         raise http_exc
     except Exception as e:
@@ -168,12 +178,12 @@ async def share_video(request: ShareVideoRequest, current_user: str = Depends(ge
             video_name=request.video_name,
             stash_video_id=request.stash_video_id,
             expires_at=expires_at,
-            hits=0
+            hits=0,
+            resolution=request.resolution
         )
         db.add(shared_video)
         db.commit()
-        logger.info(f"Video shared: share_id={share_id}, stash_video_id={request.stash_video_id}")
-        # Construct the full share URL using base_domain
+        logger.info(f"Video shared: share_id={share_id}, stash_video_id={request.stash_video_id}, resolution={request.resolution}")
         share_url = f"{BASE_DOMAIN}/share/{share_id}"
         return {"share_url": share_url}
     except Exception as e:
@@ -192,6 +202,7 @@ async def edit_share(share_id: str, request: ShareVideoRequest, current_user: st
             raise HTTPException(status_code=404, detail="Share link not found")
         video.video_name = request.video_name
         video.expires_at = datetime.datetime.now(timezone.utc) + datetime.timedelta(days=request.days_valid)
+        video.resolution = request.resolution
         db.commit()
         logger.info(f"Share updated: share_id={share_id}")
         return {"message": "Share updated"}
@@ -227,7 +238,6 @@ async def stream_shared_video(share_id: str):
         video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
         if not video:
             raise HTTPException(status_code=404, detail="Share link not found")
-        # Ensure retrieved datetime is treated as UTC before comparison
         expires_at_aware = video.expires_at.replace(tzinfo=timezone.utc)
         if expires_at_aware < datetime.datetime.now(timezone.utc):
             raise HTTPException(status_code=403, detail="Share link has expired")
@@ -251,17 +261,27 @@ async def stream_shared_video(share_id: str):
                 <img src="/static/logo-placeholder.png" alt="Logo" class="logo">
                 <div class="video-container">
                     <video id="video-player" class="video-js vjs-default-skin" controls preload="auto" width="800">
-                        <source src="/stream/{share_id}" type="video/mp4">
+                        <source src="/stream/{share_id}" type="application/x-mpegURL">
                         Your browser does not support the video tag.
                     </video>
                 </div>
                 <p class="disclaimer">{DISCLAIMER}</p>
             </div>
             <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
             <script>
+                var video = document.getElementById('video-player');
                 var player = videojs('video-player', {{
                     playbackRates: [0.5, 1, 1.5, 2]
                 }});
+                var src = '/stream/{share_id}';
+                if (Hls.isSupported()) {{
+                    var hls = new Hls();
+                    hls.loadSource(src);
+                    hls.attachMedia(video);
+                }} else if (video.canPlayType('application/vnd.apple.mpegurl')) {{
+                    video.src = src;
+                }}
             </script>
         </body>
         </html>
@@ -273,7 +293,7 @@ async def stream_shared_video(share_id: str):
     finally:
         db.close()
 
-# Proxy the video stream
+# Proxy the HLS stream (.m3u8 playlist)
 @app.get("/stream/{share_id}")
 async def proxy_video_stream(share_id: str):
     db = SessionLocal()
@@ -281,16 +301,58 @@ async def proxy_video_stream(share_id: str):
         video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
         if not video:
             raise HTTPException(status_code=404, detail="Share link not found")
-        # Ensure retrieved datetime is treated as UTC before comparison
         expires_at_aware = video.expires_at.replace(tzinfo=timezone.utc)
         if expires_at_aware < datetime.datetime.now(timezone.utc):
             raise HTTPException(status_code=403, detail="Share link has expired")
         
-        stash_url = f"{STASH_SERVER}/scene/{video.stash_video_id}/stream?apikey={STASH_API_KEY}"
+        # Fetch the .m3u8 playlist from Stash
+        stash_url = f"{STASH_SERVER}/scene/{video.stash_video_id}/stream.m3u8?apikey={STASH_API_KEY}&resolution={video.resolution}"
         response = requests.get(stash_url, stream=True)
         if response.status_code != 200:
-            logger.error(f"Failed to fetch video from Stash: status={response.status_code}")
-            raise HTTPException(status_code=500, detail="Failed to fetch video from Stash")
+            logger.error(f"Failed to fetch HLS from Stash: status={response.status_code}, url={stash_url}")
+            raise HTTPException(status_code=500, detail="Failed to fetch HLS from Stash")
+        
+        # Rewrite the .m3u8 playlist to point to proxy URLs
+        playlist_content = response.text
+        # Replace .ts segment URLs with proxy URLs
+        rewritten_playlist = re.sub(
+            r'^(?!#)(.*\.ts)$',
+            f'/stream/{share_id}/\\1',
+            playlist_content,
+            flags=re.MULTILINE
+        )
+        
+        return Response(
+            content=rewritten_playlist,
+            media_type="application/x-mpegURL",
+            headers={
+                "Access-Control-Allow-Origin": "*"
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error proxying HLS stream: {e}, url={stash_url}")
+        raise HTTPException(status_code=500, detail="Failed to proxy HLS stream")
+    finally:
+        db.close()
+
+# Proxy HLS segments (.ts files)
+@app.get("/stream/{share_id}/{segment}")
+async def proxy_segment(share_id: str, segment: str):
+    db = SessionLocal()
+    try:
+        video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
+        if not video:
+            raise HTTPException(status_code=404, detail="Share link not found")
+        expires_at_aware = video.expires_at.replace(tzinfo=timezone.utc)
+        if expires_at_aware < datetime.datetime.now(timezone.utc):
+            raise HTTPException(status_code=403, detail="Share link has expired")
+        
+        # Construct Stash segment URL
+        stash_url = f"{STASH_SERVER}/scene/{video.stash_video_id}/stream.m3u8/{segment}?apikey={STASH_API_KEY}&resolution={video.resolution}"
+        response = requests.get(stash_url, stream=True)
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch HLS segment from Stash: status={response.status_code}, url={stash_url}")
+            raise HTTPException(status_code=500, detail="Failed to fetch HLS segment from Stash")
         
         def stream_content():
             for chunk in response.iter_content(chunk_size=1024*1024):
@@ -299,15 +361,16 @@ async def proxy_video_stream(share_id: str):
         
         return StreamingResponse(
             stream_content(),
-            media_type="video/mp4",
+            media_type="video/mp2t",
             headers={
                 "Content-Length": response.headers.get("Content-Length"),
-                "Accept-Ranges": "bytes"
+                "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*"
             }
         )
     except Exception as e:
-        logger.error(f"Error proxying video stream: {e}")
-        raise HTTPException(status_code=500, detail="Failed to proxy video stream")
+        logger.error(f"Error proxying HLS segment: {e}, url={stash_url}")
+        raise HTTPException(status_code=500, detail="Failed to proxy HLS segment")
     finally:
         db.close()
 
@@ -327,16 +390,16 @@ async def get_video_title(stash_id: int, current_user: str = Depends(get_current
                 }
             }
         """,
-        "variables": {"id": str(stash_id)} # Stash GraphQL ID is usually a string
+        "variables": {"id": str(stash_id)}
     }
 
     logger.debug(f"Querying Stash for title of scene ID: {stash_id}")
     try:
         response = requests.post(stash_graphql_url, json=query, headers=headers)
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+        response.raise_for_status()
         data = response.json()
 
-        if data.get("errors"): # Handle GraphQL errors
+        if data.get("errors"):
             logger.error(f"GraphQL error from Stash: {data['errors']}")
             raise HTTPException(status_code=500, detail="GraphQL error from Stash")
 
@@ -372,7 +435,8 @@ async def list_shared_videos(current_user: str = Depends(get_current_user)):
                     "stash_video_id": v.stash_video_id,
                     "expires_at": v.expires_at,
                     "hits": v.hits,
-                    "share_url": share_url
+                    "share_url": share_url,
+                    "resolution": v.resolution
                 }
             )
         return result
