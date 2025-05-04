@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Response, Depends, status, Request
-from fastapi.responses import StreamingResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, RedirectResponse, FileResponse
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,8 @@ from passlib.context import CryptContext
 from datetime import timedelta
 import logging
 from enum import Enum
-import re
+import os
+from pathlib import Path
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -54,6 +55,10 @@ STASH_API_KEY = config['stash']['api_key']
 DISCLAIMER = config.get('disclaimer', '')
 ADMIN_USERNAME = config['kinpeek']['admin_username']
 ADMIN_PASSWORD = config['kinpeek']['admin_password']
+
+# Directory for storing .m3u8 files
+SHARES_DIR = Path("static/shares")
+SHARES_DIR.mkdir(exist_ok=True)
 
 # JWT settings
 SECRET_KEY = secrets.token_urlsafe(32)
@@ -94,7 +99,7 @@ class SharedVideo(Base):
     stash_video_id = Column(Integer)
     expires_at = Column(DateTime(timezone=True))
     hits = Column(Integer, default=0)
-    resolution = Column(String, default="MEDIUM")  # Store resolution
+    resolution = Column(String, default="MEDIUM")
 
 Base.metadata.create_all(bind=engine)
 
@@ -135,6 +140,41 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 # Generate unique share ID
 def generate_share_id(length=8):
     return secrets.token_urlsafe(length)
+
+# Generate static .m3u8 file
+def generate_m3u8_file(share_id: str, stash_video_id: int, resolution: str):
+    stash_url = f"{STASH_SERVER}/scene/{stash_video_id}/stream.m3u8?apikey={STASH_API_KEY}&resolution={resolution}"
+    try:
+        response = requests.get(stash_url)
+        if response.status_code != 200:
+            logger.error(f"Failed to fetch .m3u8 from Stash: status={response.status_code}, url={stash_url}")
+            raise Exception(f"Failed to fetch .m3u8: status={response.status_code}")
+        
+        # Verify response is a valid .m3u8 playlist
+        if not response.text.startswith("#EXTM3U"):
+            logger.error(f"Invalid .m3u8 content from Stash: {response.text[:100]}")
+            raise Exception("Invalid .m3u8 content")
+        
+        # Parse and rewrite .m3u8 playlist
+        lines = response.text.splitlines()
+        rewritten_lines = []
+        for line in lines:
+            if line.strip() and not line.startswith("#") and ".ts" in line:
+                # Extract segment name (e.g., "0.ts") from any URL, ignoring query parameters
+                segment = line.split("/")[-1].split("?")[0]
+                rewritten_lines.append(f"/share/{share_id}/stream/{segment}")
+            else:
+                rewritten_lines.append(line)
+        
+        # Save rewritten .m3u8 file
+        m3u8_path = SHARES_DIR / f"{share_id}.m3u8"
+        with open(m3u8_path, "w") as f:
+            f.write("\n".join(rewritten_lines) + "\n")
+        logger.info(f"Generated .m3u8 file for share_id={share_id} at {m3u8_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Error generating .m3u8 file for share_id={share_id}: {e}")
+        return False
 
 # Root redirect to admin panel
 @app.get("/", response_class=RedirectResponse)
@@ -183,6 +223,11 @@ async def share_video(request: ShareVideoRequest, current_user: str = Depends(ge
         )
         db.add(shared_video)
         db.commit()
+        
+        # Generate static .m3u8 file
+        if not generate_m3u8_file(share_id, request.stash_video_id, request.resolution):
+            raise HTTPException(status_code=500, detail="Failed to generate .m3u8 file")
+        
         logger.info(f"Video shared: share_id={share_id}, stash_video_id={request.stash_video_id}, resolution={request.resolution}")
         share_url = f"{BASE_DOMAIN}/share/{share_id}"
         return {"share_url": share_url}
@@ -204,6 +249,11 @@ async def edit_share(share_id: str, request: ShareVideoRequest, current_user: st
         video.expires_at = datetime.datetime.now(timezone.utc) + datetime.timedelta(days=request.days_valid)
         video.resolution = request.resolution
         db.commit()
+        
+        # Regenerate .m3u8 file
+        if not generate_m3u8_file(share_id, request.stash_video_id, request.resolution):
+            raise HTTPException(status_code=500, detail="Failed to regenerate .m3u8 file")
+        
         logger.info(f"Share updated: share_id={share_id}")
         return {"message": "Share updated"}
     except Exception as e:
@@ -222,6 +272,13 @@ async def delete_share(share_id: str, current_user: str = Depends(get_current_us
             raise HTTPException(status_code=404, detail="Share link not found")
         db.delete(video)
         db.commit()
+        
+        # Delete .m3u8 file
+        m3u8_path = SHARES_DIR / f"{share_id}.m3u8"
+        if m3u8_path.exists():
+            m3u8_path.unlink()
+            logger.info(f"Deleted .m3u8 file for share_id={share_id}")
+        
         logger.info(f"Share deleted: share_id={share_id}")
         return {"message": "Share deleted"}
     except Exception as e:
@@ -261,7 +318,7 @@ async def stream_shared_video(share_id: str):
                 <img src="/static/logo-placeholder.png" alt="Logo" class="logo">
                 <div class="video-container">
                     <video id="video-player" class="video-js vjs-default-skin" controls preload="auto" width="800">
-                        <source src="/stream/{share_id}" type="application/x-mpegURL">
+                        <source src="/share/{share_id}/stream.m3u8" type="application/x-mpegURL">
                         Your browser does not support the video tag.
                     </video>
                 </div>
@@ -274,7 +331,7 @@ async def stream_shared_video(share_id: str):
                 var player = videojs('video-player', {{
                     playbackRates: [0.5, 1, 1.5, 2]
                 }});
-                var src = '/stream/{share_id}';
+                var src = '/share/{share_id}/stream.m3u8';
                 if (Hls.isSupported()) {{
                     var hls = new Hls();
                     hls.loadSource(src);
@@ -293,9 +350,9 @@ async def stream_shared_video(share_id: str):
     finally:
         db.close()
 
-# Proxy the HLS stream (.m3u8 playlist)
-@app.get("/stream/{share_id}")
-async def proxy_video_stream(share_id: str):
+# Serve static .m3u8 file
+@app.get("/share/{share_id}/stream.m3u8")
+async def serve_m3u8_file(share_id: str):
     db = SessionLocal()
     try:
         video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
@@ -305,39 +362,27 @@ async def proxy_video_stream(share_id: str):
         if expires_at_aware < datetime.datetime.now(timezone.utc):
             raise HTTPException(status_code=403, detail="Share link has expired")
         
-        # Fetch the .m3u8 playlist from Stash
-        stash_url = f"{STASH_SERVER}/scene/{video.stash_video_id}/stream.m3u8?apikey={STASH_API_KEY}&resolution={video.resolution}"
-        response = requests.get(stash_url, stream=True)
-        if response.status_code != 200:
-            logger.error(f"Failed to fetch HLS from Stash: status={response.status_code}, url={stash_url}")
-            raise HTTPException(status_code=500, detail="Failed to fetch HLS from Stash")
+        m3u8_path = SHARES_DIR / f"{share_id}.m3u8"
+        if not m3u8_path.exists():
+            logger.warning(f".m3u8 file not found for share_id={share_id}, attempting to regenerate")
+            if not generate_m3u8_file(share_id, video.stash_video_id, video.resolution):
+                logger.error(f"Failed to regenerate .m3u8 file for share_id={share_id}")
+                raise HTTPException(status_code=500, detail="Failed to regenerate .m3u8 file")
         
-        # Rewrite the .m3u8 playlist to point to proxy URLs
-        playlist_content = response.text
-        # Replace .ts segment URLs with proxy URLs
-        rewritten_playlist = re.sub(
-            r'^(?!#)(.*\.ts)$',
-            f'/stream/{share_id}/\\1',
-            playlist_content,
-            flags=re.MULTILINE
-        )
-        
-        return Response(
-            content=rewritten_playlist,
+        return FileResponse(
+            m3u8_path,
             media_type="application/x-mpegURL",
-            headers={
-                "Access-Control-Allow-Origin": "*"
-            }
+            headers={"Access-Control-Allow-Origin": "*"}
         )
     except Exception as e:
-        logger.error(f"Error proxying HLS stream: {e}, url={stash_url}")
-        raise HTTPException(status_code=500, detail="Failed to proxy HLS stream")
+        logger.error(f"Error serving .m3u8 file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to serve .m3u8 file")
     finally:
         db.close()
 
 # Proxy HLS segments (.ts files)
-@app.get("/stream/{share_id}/{segment}")
-async def proxy_segment(share_id: str, segment: str):
+@app.get("/share/{share_id}/stream/{segment}")
+async def proxy_hls_segment(share_id: str, segment: str):
     db = SessionLocal()
     try:
         video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
@@ -369,7 +414,7 @@ async def proxy_segment(share_id: str, segment: str):
             }
         )
     except Exception as e:
-        logger.error(f"Error proxying HLS segment: {e}, url={stash_url}")
+        logger.error(f"Error proxying HLS segment: {e}")
         raise HTTPException(status_code=500, detail="Failed to proxy HLS segment")
     finally:
         db.close()
