@@ -1,4 +1,13 @@
+kinpeek:
+  host: 127.0.0.1
+  port: 8000
+  base_domain: https://example.com
+  admin_username: admin
+  admin_password: your_secure_password
+  default_resolution: MEDIUM # LOW MEDIUM OR HIGH
+  share_id_length: 8
 stash:
-  server_ip: "127.0.0.1" # replace Stash on other host
-  port: 5588 # replace if Stash on other port
-  api_key: "Enter your Stash API Key here"
+  server_ip: 127.0.0.1
+  port: 5588
+  api_key: yourStashAPIKeyGoesHere
+disclaimer: Your disclaimer text here.

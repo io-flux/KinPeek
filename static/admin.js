@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const stashIdInput = document.getElementById('stash-id');
     const videoNameInput = document.getElementById('video-name');
     const daysValidInput = document.getElementById('days-valid');
+    const resolutionInput = document.getElementById('resolution');
+    const sharePasswordInput = document.getElementById('share-password');
     const lookupTitleButton = document.getElementById('lookup-title-button');
     const shareMessage = document.getElementById('share-message');
     const shareError = document.getElementById('share-error');
@@ -20,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const editShareIdInput = document.getElementById('edit-share-id');
     const editVideoNameInput = document.getElementById('edit-video-name');
     const editDaysValidInput = document.getElementById('edit-days-valid');
+    const editResolutionInput = document.getElementById('edit-resolution');
+    const editSharePasswordInput = document.getElementById('edit-share-password');
     const saveEditButton = document.getElementById('save-edit-button');
     const cancelEditButton = document.getElementById('cancel-edit-button');
     const editError = document.getElementById('edit-error');
@@ -79,9 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
                 throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
             }
-            // Handle no content responses
             if (response.status === 204 || response.headers.get('content-length') === '0') {
-                return null; 
+                return null;
             }
             return await response.json();
         } catch (error) {
@@ -90,10 +93,52 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function escapeHTML(str) {
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
+    function calculateDaysRemaining(expiresAt) {
+        const now = new Date();
+        const expiry = new Date(expiresAt);
+        const diffTime = expiry - now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return Math.max(0, diffDays);
+    }
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Link copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy link:', err);
+                fallbackCopy(text);
+            });
+        } else {
+            fallbackCopy(text);
+        }
+    }
+
+    function fallbackCopy(text) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+            document.execCommand('copy');
+            alert('Link copied to clipboard!');
+        } catch (err) {
+            console.error('Fallback copy failed:', err);
+            alert('Failed to copy link. Please copy manually: ' + text);
+        }
+        document.body.removeChild(textarea);
+    }
+
     // --- Initialization ---
     if (authToken) {
-        // Simple check: Assume token is valid initially. 
-        // A better check would be to make a test API call.
         showAdmin();
     } else {
         showLogin();
@@ -106,7 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         
-        // FastAPI's OAuth2PasswordRequestForm expects form data
         const formData = new URLSearchParams();
         formData.append('username', username);
         formData.append('password', password);
@@ -116,13 +160,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData,
                 headers: {
-                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/x-www-form-urlencoded',
                 }
             });
 
             if (!response.ok) {
-                 const errorData = await response.json().catch(() => ({ detail: 'Login failed' }));
-                 throw new Error(errorData.detail || `Login failed with status: ${response.status}`);
+                const errorData = await response.json().catch(() => ({ detail: 'Login failed' }));
+                throw new Error(errorData.detail || `Login failed with status: ${response.status}`);
             }
 
             const data = await response.json();
@@ -132,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Login failed:', error);
             loginError.textContent = error.message;
-            showLogin(); // Ensure user stays on login page on error
+            showLogin();
         }
     });
 
@@ -148,14 +192,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         try {
-            // *** Requires a new backend endpoint: /get_video_title/{stash_id} ***
-            // This endpoint should use the Stash API key securely on the backend.
-            const data = await apiRequest(`/get_video_title/${stashId}`); 
+            const data = await apiRequest(`/get_video_title/${stashId}`);
             if (data && data.title) {
                 videoNameInput.value = data.title;
             } else {
                 shareError.textContent = 'Could not find title for this ID.';
-                videoNameInput.value = ''; // Clear if not found
+                videoNameInput.value = '';
             }
         } catch (error) {
             shareError.textContent = `Error looking up title: ${error.message}`;
@@ -171,18 +213,20 @@ document.addEventListener('DOMContentLoaded', () => {
             video_name: videoNameInput.value,
             stash_video_id: parseInt(stashIdInput.value, 10),
             days_valid: parseInt(daysValidInput.value, 10),
+            resolution: resolutionInput.value,
+            password: sharePasswordInput.value || null
         };
 
-        if (!shareData.video_name || isNaN(shareData.stash_video_id) || isNaN(shareData.days_valid)) {
-            shareError.textContent = 'Please fill in all fields correctly.';
+        if (!shareData.video_name || isNaN(shareData.stash_video_id) || isNaN(shareData.days_valid) || !shareData.resolution) {
+            shareError.textContent = 'Please fill in all required fields correctly.';
             return;
         }
 
         try {
             const result = await apiRequest('/share', 'POST', shareData);
             shareMessage.textContent = `Video shared successfully! URL: ${result.share_url}`;
-            shareForm.reset(); // Clear the form
-            fetchSharedVideos(); // Refresh the list
+            shareForm.reset();
+            fetchSharedVideos();
         } catch (error) {
             shareError.textContent = `Failed to share video: ${error.message}`;
         }
@@ -190,49 +234,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
     refreshSharesButton.addEventListener('click', fetchSharedVideos);
 
-    // --- Shared Videos Table Logic ---
     async function fetchSharedVideos() {
         try {
             const videos = await apiRequest('/shared_videos');
             renderSharedVideos(videos);
         } catch (error) {
             console.error('Failed to fetch shared videos:', error);
-            // Optionally display an error message to the user in the table area
-            sharedVideosTableBody.innerHTML = '<tr><td colspan="7">Failed to load shared videos. Please try again.</td></tr>';
+            sharedVideosTableBody.innerHTML = '<tr><td colspan="4">Failed to load shared videos. Please try again.</td></tr>';
         }
     }
 
     function renderSharedVideos(videos) {
-        sharedVideosTableBody.innerHTML = ''; // Clear existing rows
+        sharedVideosTableBody.innerHTML = '';
         if (!videos || videos.length === 0) {
-            sharedVideosTableBody.innerHTML = '<tr><td colspan="7">No videos shared yet.</td></tr>';
+            sharedVideosTableBody.innerHTML = '<tr><td colspan="4">No videos shared yet.</td></tr>';
             return;
         }
 
         videos.forEach(video => {
             const row = document.createElement('tr');
             const expiresDate = new Date(video.expires_at).toLocaleString();
-            const shareUrl = video.share_url; // Use the URL from the backend
+            const shareUrl = video.share_url;
 
             row.innerHTML = `
-                <td>${video.share_id}</td>
                 <td>${escapeHTML(video.video_name)}</td>
-                <td>${video.stash_video_id}</td>
-                <td>${expiresDate}</td>
                 <td>${video.hits}</td>
+                <td>${expiresDate}</td>
                 <td>
                     <a href="${shareUrl}" target="_blank">${shareUrl}</a>
                     <button class="copy-button" data-url="${shareUrl}">Copy</button>
-                </td>
-                <td>
-                    <button class="edit-button" data-share-id="${video.share_id}" data-video-name="${escapeHTML(video.video_name)}" data-days-valid="${calculateDaysRemaining(video.expires_at)}">Edit</button>
+                    <button class="edit-button" data-share-id="${video.share_id}" data-video-name="${escapeHTML(video.video_name.split(' (')[0])}" data-days-valid="${calculateDaysRemaining(video.expires_at)}" data-resolution="${video.resolution}" data-has-password="${video.has_password}">Edit</button>
                     <button class="delete-button" data-share-id="${video.share_id}">Delete</button>
                 </td>
             `;
             sharedVideosTableBody.appendChild(row);
         });
 
-        // Add event listeners for new buttons
         addTableButtonListeners();
     }
 
@@ -240,12 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.copy-button').forEach(button => {
             button.addEventListener('click', (e) => {
                 const url = e.target.getAttribute('data-url');
-                navigator.clipboard.writeText(url).then(() => {
-                    alert('Link copied to clipboard!');
-                }).catch(err => {
-                    console.error('Failed to copy link: ', err);
-                    alert('Failed to copy link.');
-                });
+                copyToClipboard(url);
             });
         });
 
@@ -253,12 +285,14 @@ document.addEventListener('DOMContentLoaded', () => {
             button.addEventListener('click', (e) => {
                 const shareId = e.target.getAttribute('data-share-id');
                 const videoName = e.target.getAttribute('data-video-name');
-                const daysValid = e.target.getAttribute('data-days-valid'); 
+                const daysValid = e.target.getAttribute('data-days-valid');
+                const resolution = e.target.getAttribute('data-resolution');
                 
                 editShareIdInput.value = shareId;
                 editVideoNameInput.value = videoName;
-                // Calculate remaining days or use a default if expired/invalid
-                editDaysValidInput.value = Math.max(1, parseInt(daysValid) || 7); // Ensure at least 1 day
+                editDaysValidInput.value = Math.max(1, parseInt(daysValid) || 7);
+                editResolutionInput.value = resolution;
+                editSharePasswordInput.value = '';
                 
                 editModal.style.display = 'block';
                 clearMessages();
@@ -271,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (confirm(`Are you sure you want to delete share ${shareId}?`)) {
                     try {
                         await apiRequest(`/delete_share/${shareId}`, 'DELETE');
-                        fetchSharedVideos(); // Refresh list after delete
+                        fetchSharedVideos();
                     } catch (error) {
                         alert(`Failed to delete share: ${error.message}`);
                     }
@@ -280,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Edit Modal Logic ---
     cancelEditButton.addEventListener('click', () => {
         editModal.style.display = 'none';
     });
@@ -290,42 +323,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const shareId = editShareIdInput.value;
         const updatedData = {
             video_name: editVideoNameInput.value,
-             // Note: The backend expects stash_video_id, but we don't allow changing it here
-             // It might be better to fetch the original stash_id if the backend requires it for PUT
-             // Or adjust the backend PUT endpoint not to require stash_video_id
-            stash_video_id: 0, // Placeholder - backend should ignore or fetch this
-            days_valid: parseInt(editDaysValidInput.value, 10)
+            stash_video_id: 0,
+            days_valid: parseInt(editDaysValidInput.value, 10),
+            resolution: editResolutionInput.value,
+            password: editSharePasswordInput.value || null
         };
 
-        if (!updatedData.video_name || isNaN(updatedData.days_valid)) {
-            editError.textContent = 'Please fill in all fields correctly.';
+        if (!updatedData.video_name || isNaN(updatedData.days_valid) || !updatedData.resolution) {
+            editError.textContent = 'Please fill in all required fields correctly.';
             return;
         }
 
         try {
-            // *** Backend PUT /edit_share/{share_id} needs to accept ShareVideoRequest ***
-            // It currently expects video_name and days_valid (and stash_video_id which we aren't changing)
-            await apiRequest(`/edit_share/${shareId}`, 'PUT', updatedData); 
+            await apiRequest(`/edit_share/${shareId}`, 'PUT', updatedData);
             editModal.style.display = 'none';
-            fetchSharedVideos(); // Refresh the list
-        } catch (error) { 
+            fetchSharedVideos();
+        } catch (error) {
             editError.textContent = `Failed to update share: ${error.message}`;
         }
     });
-
-    // --- Utility Functions ---
-    function escapeHTML(str) {
-        const div = document.createElement('div');
-        div.appendChild(document.createTextNode(str));
-        return div.innerHTML;
-    }
-
-    function calculateDaysRemaining(expiresAt) {
-        const now = new Date();
-        const expiry = new Date(expiresAt);
-        const diffTime = expiry - now;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays); // Return 0 if expired
-    }
-
-}); 
+});

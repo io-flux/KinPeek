@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Response, Depends, status, Request
+from fastapi import FastAPI, HTTPException, Response, Depends, status, Request, Form
 from fastapi.responses import StreamingResponse, HTMLResponse, RedirectResponse, FileResponse
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
@@ -55,6 +55,8 @@ STASH_API_KEY = config['stash']['api_key']
 DISCLAIMER = config.get('disclaimer', '')
 ADMIN_USERNAME = config['kinpeek']['admin_username']
 ADMIN_PASSWORD = config['kinpeek']['admin_password']
+DEFAULT_RESOLUTION = config['kinpeek'].get('default_resolution', 'MEDIUM')
+SHARE_ID_LENGTH = config['kinpeek'].get('share_id_length', 8)
 
 # Directory for storing .m3u8 files
 SHARES_DIR = Path("static/shares")
@@ -99,7 +101,8 @@ class SharedVideo(Base):
     stash_video_id = Column(Integer)
     expires_at = Column(DateTime(timezone=True))
     hits = Column(Integer, default=0)
-    resolution = Column(String, default="MEDIUM")
+    resolution = Column(String, default=DEFAULT_RESOLUTION)
+    password_hash = Column(String, nullable=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -108,7 +111,8 @@ class ShareVideoRequest(BaseModel):
     video_name: str
     stash_video_id: int
     days_valid: int = 7
-    resolution: Resolution = Field(default=Resolution.MEDIUM, description="Streaming resolution")
+    resolution: Resolution = Field(default=Resolution[DEFAULT_RESOLUTION], description="Streaming resolution")
+    password: str | None = None
 
 class Token(BaseModel):
     access_token: str
@@ -138,8 +142,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
 
 # Generate unique share ID
-def generate_share_id(length=8):
-    return secrets.token_urlsafe(length)
+def generate_share_id():
+    return secrets.token_urlsafe(SHARE_ID_LENGTH)
 
 # Generate static .m3u8 file
 def generate_m3u8_file(share_id: str, stash_video_id: int, resolution: str):
@@ -213,13 +217,18 @@ async def share_video(request: ShareVideoRequest, current_user: str = Depends(ge
     
     db = SessionLocal()
     try:
+        password_hash = None
+        if request.password:
+            password_hash = pwd_context.hash(request.password)
+        
         shared_video = SharedVideo(
             share_id=share_id,
             video_name=request.video_name,
             stash_video_id=request.stash_video_id,
             expires_at=expires_at,
             hits=0,
-            resolution=request.resolution
+            resolution=request.resolution,
+            password_hash=password_hash
         )
         db.add(shared_video)
         db.commit()
@@ -248,6 +257,10 @@ async def edit_share(share_id: str, request: ShareVideoRequest, current_user: st
         video.video_name = request.video_name
         video.expires_at = datetime.datetime.now(timezone.utc) + datetime.timedelta(days=request.days_valid)
         video.resolution = request.resolution
+        if request.password:
+            video.password_hash = pwd_context.hash(request.password)
+        else:
+            video.password_hash = None
         db.commit()
         
         # Regenerate .m3u8 file
@@ -289,7 +302,7 @@ async def delete_share(share_id: str, current_user: str = Depends(get_current_us
 
 # Stream video via share link
 @app.get("/share/{share_id}", response_class=HTMLResponse)
-async def stream_shared_video(share_id: str):
+async def stream_shared_video(share_id: str, password_verified: bool = False):
     db = SessionLocal()
     try:
         video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
@@ -298,6 +311,29 @@ async def stream_shared_video(share_id: str):
         expires_at_aware = video.expires_at.replace(tzinfo=timezone.utc)
         if expires_at_aware < datetime.datetime.now(timezone.utc):
             raise HTTPException(status_code=403, detail="Share link has expired")
+        
+        # Check if password is required
+        if video.password_hash and not password_verified:
+            return HTMLResponse(content=f"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Enter Password</title>
+                <link href="/static/styles.css" rel="stylesheet">
+            </head>
+            <body>
+                <div class="container">
+                    <h2>Enter Password for {video.video_name}</h2>
+                    <form action="/share/{share_id}/verify" method="post">
+                        <input type="password" name="password" placeholder="Password" required>
+                        <button type="submit">Submit</button>
+                    </form>
+                </div>
+            </body>
+            </html>
+            """)
         
         video.hits += 1
         db.commit()
@@ -350,6 +386,28 @@ async def stream_shared_video(share_id: str):
     finally:
         db.close()
 
+# Verify password for share
+@app.post("/share/{share_id}/verify", response_class=HTMLResponse)
+async def verify_share_password(share_id: str, password: str = Form(...)):
+    db = SessionLocal()
+    try:
+        video = db.query(SharedVideo).filter(SharedVideo.share_id == share_id).first()
+        if not video:
+            raise HTTPException(status_code=404, detail="Share link not found")
+        if not video.password_hash or not pwd_context.verify(password, video.password_hash):
+            raise HTTPException(status_code=401, detail="Incorrect password")
+        
+        # Redirect to video page with verification
+        return RedirectResponse(url=f"/share/{share_id}?password_verified=true", status_code=303)
+    except HTTPException as http_exc:
+        logger.warning(f"Password verification failed: {http_exc.detail}")
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Error verifying password: {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify password")
+    finally:
+        db.close()
+
 # Serve static .m3u8 file
 @app.get("/share/{share_id}/stream.m3u8")
 async def serve_m3u8_file(share_id: str):
@@ -372,7 +430,10 @@ async def serve_m3u8_file(share_id: str):
         return FileResponse(
             m3u8_path,
             media_type="application/x-mpegURL",
-            headers={"Access-Control-Allow-Origin": "*"}
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=10"
+            }
         )
     except Exception as e:
         logger.error(f"Error serving .m3u8 file: {e}")
@@ -399,8 +460,9 @@ async def proxy_hls_segment(share_id: str, segment: str):
             logger.error(f"Failed to fetch HLS segment from Stash: status={response.status_code}, url={stash_url}")
             raise HTTPException(status_code=500, detail="Failed to fetch HLS segment from Stash")
         
+        logger.debug(f"Proxied .ts segment for share_id={share_id}, segment={segment}")
         def stream_content():
-            for chunk in response.iter_content(chunk_size=1024*1024):
+            for chunk in response.iter_content(chunk_size=2048*1024):
                 if chunk:
                     yield chunk
         
@@ -410,7 +472,8 @@ async def proxy_hls_segment(share_id: str, segment: str):
             headers={
                 "Content-Length": response.headers.get("Content-Length"),
                 "Accept-Ranges": "bytes",
-                "Access-Control-Allow-Origin": "*"
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600"
             }
         )
     except Exception as e:
@@ -455,7 +518,6 @@ async def get_video_title(stash_id: int, current_user: str = Depends(get_current
         else:
             logger.warning(f"Scene not found or title missing for Stash ID: {stash_id}")
             raise HTTPException(status_code=404, detail="Scene not found in Stash")
-
     except requests.exceptions.RequestException as e:
         logger.error(f"Error connecting to Stash GraphQL API: {e}")
         raise HTTPException(status_code=503, detail="Could not connect to Stash API")
@@ -465,7 +527,7 @@ async def get_video_title(stash_id: int, current_user: str = Depends(get_current
 
 # List shared videos
 @app.get("/shared_videos")
-async def list_shared_videos(current_user: str = Depends(get_current_user)):
+async def shared_videos(current_user: str = Depends(get_current_user)):
     db = SessionLocal()
     try:
         videos = db.query(SharedVideo).all()
@@ -476,12 +538,13 @@ async def list_shared_videos(current_user: str = Depends(get_current_user)):
             result.append(
                 {
                     "share_id": v.share_id,
-                    "video_name": v.video_name,
+                    "video_name": f"{v.video_name} ({v.resolution})",
                     "stash_video_id": v.stash_video_id,
                     "expires_at": v.expires_at,
                     "hits": v.hits,
                     "share_url": share_url,
-                    "resolution": v.resolution
+                    "resolution": v.resolution,
+                    "has_password": v.password_hash is not None
                 }
             )
         return result

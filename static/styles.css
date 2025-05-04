@@ -1,238 +1,189 @@
-/* Gruvbox Dark Theme - Basic Styles */
-:root {
-    --bg: #282828;
-    --fg: #ebdbb2;
-    --bg1: #3c3836;
-    --bg2: #504945;
-    --gray: #928374;
-    --red: #cc241d;
-    --green: #98971a;
-    --yellow: #d79921;
-    --blue: #458588;
-    --purple: #b16286;
-    --aqua: #689d6a;
-    --orange: #d65d0e;
-
-    --border-color: var(--bg2);
-    --input-bg: var(--bg1);
-    --button-bg: var(--blue);
-    --button-hover-bg: var(--aqua);
-    --button-fg: var(--bg);
-    --error-fg: var(--red);
-    --success-fg: var(--green);
-    --link-fg: var(--blue);
-    --link-hover-fg: var(--aqua);
-}
-
 body {
-    background-color: var(--bg);
-    color: var(--fg);
-    font-family: sans-serif;
+    background-color: #1A0F2A; /* Near-black purple */
+    color: #B0A2C2; /* Light grayish-purple */
+    font-family: 'Roboto', sans-serif;
     margin: 0;
     padding: 20px;
-    font-size: 14px;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 800px;
     margin: 0 auto;
-    background-color: var(--bg1);
     padding: 20px;
+    background-color: #2A1B47; /* Dark desaturated purple */
     border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 15px rgba(216, 27, 96, 0.2); /* Subtle pink glow */
 }
 
 h1, h2, h3 {
-    color: var(--orange);
-    border-bottom: 1px solid var(--bg2);
-    padding-bottom: 5px;
-    margin-top: 20px;
-    margin-bottom: 15px;
+    color: #D81B60; /* Bright pink for headings */
+    margin: 10px 0;
 }
 
-h1 {
-    text-align: center;
+.grid-form {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 10px;
+    align-items: center;
 }
 
-/* Forms */
-form {
-    background-color: var(--bg2);
-    padding: 15px;
-    border-radius: 5px;
-    margin-bottom: 20px;
+.grid-form label {
+    text-align: right;
+    font-size: 14px;
 }
 
-label {
-    display: inline-block;
-    margin-bottom: 5px;
-    color: var(--gray);
-    min-width: 100px;
-}
-
-input[type="text"],
-input[type="password"],
-input[type="number"] {
-    background-color: var(--input-bg);
-    color: var(--fg);
-    border: 1px solid var(--border-color);
-    padding: 8px 10px;
+.grid-form input, .grid-form select, .grid-form button {
+    width: 100%;
+    padding: 8px;
+    margin: 0;
+    border: 1px solid #4A2E6B; /* Darker purple border */
     border-radius: 4px;
-    margin-bottom: 10px;
-    box-sizing: border-box;
-    min-width: 200px;
+    background-color: #3C2554; /* Slightly lighter purple */
+    color: #B0A2C2;
+    font-size: 14px;
+    transition: border-color 0.3s;
 }
 
-input:focus {
+.grid-form input:focus, .grid-form select:focus {
+    border-color: #D81B60; /* Pink outline on focus */
     outline: none;
-    border-color: var(--blue);
+}
+
+.grid-form select {
+    appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23B0A2C2" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 8px top 50%;
+    padding-right: 24px;
+}
+
+.grid-form input[type="number"] {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.grid-form input[type="number"]::-webkit-inner-spin-button,
+.grid-form input[type="number"]::-webkit-outer-spin-button {
+    display: none;
+}
+
+.input-group {
+    display: flex;
+    gap: 10px;
+}
+
+.input-group input {
+    flex: 1;
+}
+
+.input-group button {
+    width: auto;
 }
 
 button {
-    background-color: var(--button-bg);
-    color: var(--button-fg);
+    background-color: #4A2E6B; /* Dark purple */
     border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
+    padding: 8px 16px;
     cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s ease;
-    margin-left: 5px;
+    transition: background-color 0.3s, box-shadow 0.3s;
 }
 
 button:hover {
-    background-color: var(--button-hover-bg);
-}
-
-button[type="submit"] {
-    background-color: var(--green);
-}
-
-button[type="submit"]:hover {
-    background-color: #b8bb26; /* Lighter green */
-}
-
-#logout-button,
-#cancel-edit-button {
-    background-color: var(--red);
-}
-
-#logout-button:hover,
-#cancel-edit-button:hover {
-     background-color: #fb4934; /* Lighter red */
+    background-color: #D81B60; /* Pink on hover */
+    box-shadow: 0 0 10px rgba(216, 27, 96, 0.5);
 }
 
 .error-message {
-    color: var(--error-fg);
-    font-weight: bold;
-    margin-top: 10px;
+    color: #D81B60; /* Pink for errors */
+    font-size: 12px;
+    margin: 5px 0;
 }
 
 .success-message {
-    color: var(--success-fg);
-    font-weight: bold;
-    margin-top: 10px;
+    color: #B0A2C2; /* Light purple for success */
+    font-size: 12px;
+    margin: 5px 0;
 }
 
-/* Table */
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 15px;
-}
-
-thead {
-    background-color: var(--bg2);
+    margin-top: 20px;
 }
 
 th, td {
-    border: 1px solid var(--border-color);
     padding: 10px;
     text-align: left;
+    border-bottom: 1px solid #4A2E6B;
 }
 
 th {
-    color: var(--yellow);
+    background-color: #3C2554;
+    color: #D81B60; /* Pink for headers */
 }
 
-tbody tr:nth-child(odd) {
-    background-color: var(--bg1);
-}
-
-tbody tr:nth-child(even) {
-    background-color: var(--bg);
-}
-
-a {
-    color: var(--link-fg);
+td a {
+    color: #B0A2C2;
     text-decoration: none;
 }
 
-a:hover {
-    color: var(--link-hover-fg);
-    text-decoration: underline;
+td a:hover {
+    color: #D81B60;
 }
 
-/* Buttons in Table */
-table button {
-    padding: 5px 8px;
+.copy-button, .edit-button, .delete-button {
+    margin: 0 5px;
+    padding: 5px 10px;
     font-size: 12px;
-    margin: 2px;
 }
 
-.copy-button {
-    background-color: var(--gray);
-    color: var(--bg);
-}
-.copy-button:hover {
-    background-color: #a89984; /* Lighter gray */
-}
-
-.edit-button {
-     background-color: var(--yellow);
-     color: var(--bg);
-}
-.edit-button:hover {
-    background-color: #fabd2f; /* Lighter yellow */
-}
-
-.delete-button {
-    background-color: var(--red);
-}
-.delete-button:hover {
-     background-color: #fb4934; /* Lighter red */
-}
-
-
-/* Edit Modal */
 #edit-modal {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: var(--bg2);
-    padding: 30px;
+    background-color: #2A1B47;
+    padding: 20px;
     border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 20px rgba(216, 27, 96, 0.3);
     z-index: 1000;
-    border: 1px solid var(--border-color);
+    animation: fadeIn 0.3s ease-in;
 }
 
-#edit-modal h3 {
-    margin-top: 0;
-    color: var(--orange);
+#edit-modal .grid-form {
+    grid-template-columns: 120px 1fr;
+}
+
+.modal-buttons {
+    grid-column: span 2;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.logo {
+    display: block;
+    margin: 0 auto 20px;
+    max-width: 150px;
+}
+
+.video-container {
+    margin: 20px 0;
     text-align: center;
 }
 
-#edit-modal label {
-    display: block;
-    margin-top: 10px;
+.video-js {
+    background-color: #1A0F2A;
 }
 
-#edit-modal input {
-    width: 100%;
+.disclaimer {
+    font-size: 12px;
+    color: #B0A2C2;
+    text-align: center;
 }
 
-#edit-modal button {
-    margin-top: 15px;
-    margin-right: 10px;
-} 
+@keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -60%); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
+}

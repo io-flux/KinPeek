@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kinpeek Admin</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>KinPeek Admin</title>
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>Kinpeek Admin Panel</h1>
+        <h1>KinPeek Admin Panel</h1>
 
         <!-- Login Section -->
         <div id="login-section">
             <h2>Login</h2>
-            <form id="login-form">
+            <form id="login-form" class="grid-form">
                 <input type="text" id="username" placeholder="Username" required>
                 <input type="password" id="password" placeholder="Password" required>
                 <button type="submit">Login</button>
@@ -27,17 +27,24 @@
 
             <!-- Share Video Section -->
             <h2>Share New Video</h2>
-            <form id="share-form">
-                <label for="stash-id">Stash Video ID:</label>
-                <input type="number" id="stash-id" required>
-                <button type="button" id="lookup-title-button">Lookup Title</button>
-                <br>
-                <label for="video-name">Video Name:</label>
+            <form id="share-form" class="grid-form">
+                <label for="stash-id">Stash Video ID</label>
+                <div class="input-group">
+                    <input type="number" id="stash-id" required>
+                    <button type="button" id="lookup-title-button">Lookup Title</button>
+                </div>
+                <label for="video-name">Video Name</label>
                 <input type="text" id="video-name" required>
-                <br>
-                <label for="days-valid">Days Valid:</label>
+                <label for="days-valid">Days Valid</label>
                 <input type="number" id="days-valid" value="7" required>
-                <br>
+                <label for="resolution">Resolution</label>
+                <select id="resolution" required>
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM" selected>Medium</option>
+                    <option value="HIGH">High</option>
+                </select>
+                <label for="share-password">Password (optional)</label>
+                <input type="password" id="share-password" placeholder="Password">
                 <button type="submit">Share Video</button>
             </form>
             <p id="share-message" class="success-message"></p>
@@ -49,12 +56,9 @@
             <table id="shared-videos-table">
                 <thead>
                     <tr>
-                        <th>Share ID</th>
                         <th>Video Name</th>
-                        <th>Stash ID</th>
-                        <th>Expires At</th>
                         <th>Hits</th>
-                        <th>Share Link</th>
+                        <th>Expires At</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -66,21 +70,30 @@
 
         <!-- Edit Modal (Hidden by default) -->
         <div id="edit-modal" style="display: none;">
-             <h3>Edit Share</h3>
-             <input type="hidden" id="edit-share-id">
-             <label for="edit-video-name">Video Name:</label>
-             <input type="text" id="edit-video-name" required>
-             <br>
-             <label for="edit-days-valid">Days Valid:</label>
-             <input type="number" id="edit-days-valid" required>
-             <br>
-             <button id="save-edit-button">Save Changes</button>
-             <button id="cancel-edit-button">Cancel</button>
-             <p id="edit-error" class="error-message"></p>
+            <h3>Edit Share</h3>
+            <form class="grid-form">
+                <input type="hidden" id="edit-share-id">
+                <label for="edit-video-name">Video Name</label>
+                <input type="text" id="edit-video-name" required>
+                <label for="edit-days-valid">Days Valid</label>
+                <input type="number" id="edit-days-valid" required>
+                <label for="edit-resolution">Resolution</label>
+                <select id="edit-resolution" required>
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                </select>
+                <label for="edit-share-password">Password (optional)</label>
+                <input type="password" id="edit-share-password" placeholder="Password">
+                <div class="modal-buttons">
+                    <button type="button" id="save-edit-button">Save Changes</button>
+                    <button type="button" id="cancel-edit-button">Cancel</button>
+                </div>
+            </form>
+            <p id="edit-error" class="error-message"></p>
         </div>
-
     </div>
 
-    <script src="admin.js"></script>
+    <script src="/static/admin.js"></script>
 </body>
-</html> 
+</html>
