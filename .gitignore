@@ -1,3 +1,4 @@
+.env
 config.yaml
 shared_videos.db
 __pycache__
